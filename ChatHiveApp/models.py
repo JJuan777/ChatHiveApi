@@ -40,7 +40,14 @@ class Thread(TimeStampedModel):
     is_archived = models.BooleanField(default=False, db_index=True)
 
     # Para DIRECT: "u1:u2" con ids ordenados; único cuando no es null
-    direct_key = models.CharField(max_length=64, blank=True, null=True, unique=True)
+    direct_key = models.CharField(
+        max_length=128,          # <── antes seguro tenías 64
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Clave determinística para hilos DIRECT (p.ej. '<user1>:<user2>').",
+    )
 
     # Optimizaciones para Inbox
     last_message_at = models.DateTimeField(blank=True, null=True, db_index=True)
