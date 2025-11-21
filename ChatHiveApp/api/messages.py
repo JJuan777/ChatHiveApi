@@ -17,106 +17,109 @@ from ChatHiveApp.consumers import thread_group_name
 
 
 class ChatMessagePagination(PageNumberPagination):
-  page_size = 50
-  page_size_query_param = "page_size"
-  max_page_size = 200
+    page_size = 30                # 👈 30 mensajes por página
+    page_size_query_param = "page_size"
+    max_page_size = 200
 
 
 class MessageViewSet(viewsets.ModelViewSet):
-  """
-  GET  /api/chat/threads/<thread_id>/messages/
-  POST /api/chat/threads/<thread_id>/messages/
-  """
+    """
+    GET  /api/chat/threads/<thread_id>/messages/
+    POST /api/chat/threads/<thread_id>/messages/
+    """
 
-  http_method_names = ["get", "post", "head", "options"]
-  serializer_class = MessageSerializer
-  permission_classes = [permissions.IsAuthenticated, IsThreadMember]
-  pagination_class = ChatMessagePagination
+    http_method_names = ["get", "post", "head", "options"]
+    serializer_class = MessageSerializer
+    permission_classes = [permissions.IsAuthenticated, IsThreadMember]
+    pagination_class = ChatMessagePagination
 
-  # ── Helpers de hilo ────────────────────────────────────────────
-  def get_thread(self) -> Thread:
-    thread_id = self.kwargs.get("thread_id")
-    try:
-      return Thread.objects.get(id=thread_id)
-    except Thread.DoesNotExist:
-      raise NotFound("Thread no encontrado")
+    # ── Helpers de hilo ────────────────────────────────────────────
+    def get_thread(self) -> Thread:
+        thread_id = self.kwargs.get("thread_id")
+        try:
+            return Thread.objects.get(id=thread_id)
+        except Thread.DoesNotExist:
+            raise NotFound("Thread no encontrado")
 
-  # ── Queryset base para list ────────────────────────────────────
-  def get_queryset(self):
-    thread = self.get_thread()
+    # ── Queryset base para list ────────────────────────────────────
+    def get_queryset(self):
+        thread = self.get_thread()
 
-    qs = (
-      Message.objects.filter(thread=thread, deleted_at__isnull=True)
-      .select_related("sender")
-      .order_by("created_at")
-    )
+        qs = (
+            Message.objects.filter(thread=thread, deleted_at__isnull=True)
+            .select_related("sender")
+            # ⬇️ ANTES: .order_by("created_at", "id")
+            .order_by("-created_at", "-id")   # 👈 más nuevos primero
+        )
 
-    before = self.request.query_params.get("before")
-    after = self.request.query_params.get("after")
+        before = self.request.query_params.get("before")
+        after = self.request.query_params.get("after")
 
-    if before:
-      dt = parse_datetime(before)
-      if not dt:
-        raise ValidationError({"before": "Fecha/hora inválida"})
-      qs = qs.filter(created_at__lt=dt)
+        if before:
+            dt = parse_datetime(before)
+            if not dt:
+                raise ValidationError({"before": "Fecha/hora inválida"})
+            qs = qs.filter(created_at__lt=dt)
 
-    if after:
-      dt = parse_datetime(after)
-      if not dt:
-        raise ValidationError({"after": "Fecha/hora inválida"})
-      qs = qs.filter(created_at__gt=dt)
+        if after:
+            dt = parse_datetime(after)
+            if not dt:
+                raise ValidationError({"after": "Fecha/hora inválida"})
+            qs = qs.filter(created_at__gt=dt)
 
-    return qs
+        return qs
 
-  # ── Crear mensaje (REST) + broadcast WS ────────────────────────
-  def perform_create(self, serializer):
-    thread = self.get_thread()
 
-    client_id = self.request.data.get("client_id")
 
-    # Idempotencia simple por client_id
-    if client_id:
-      existing = Message.objects.filter(thread=thread, client_id=client_id).first()
-      if existing:
-        self.instance = existing
-        message = existing
-      else:
-        message: Message = serializer.save(thread=thread)
-        self.instance = message
-    else:
-      message: Message = serializer.save(thread=thread)
-      self.instance = message
+    # ── Crear mensaje (REST) + broadcast WS ────────────────────────
+    def perform_create(self, serializer):
+        thread = self.get_thread()
 
-    # Actualizar último mensaje del hilo
-    Thread.objects.filter(id=thread.id).update(
-      last_message_id=message.id,
-      last_message_at=message.created_at,
-    )
+        client_id = self.request.data.get("client_id")
 
-    # ── Broadcast al grupo WebSocket ─────────────────────────────
-    channel_layer = get_channel_layer()
-    if not channel_layer:
-      return  # por si no está configurado channels (tests, etc.)
+        # Idempotencia simple por client_id
+        if client_id:
+            existing = Message.objects.filter(thread=thread, client_id=client_id).first()
+            if existing:
+                self.instance = existing
+                message = existing
+            else:
+                message: Message = serializer.save(thread=thread)
+                self.instance = message
+        else:
+            message: Message = serializer.save(thread=thread)
+            self.instance = message
 
-    group = thread_group_name(str(thread.id))
+        # Actualizar último mensaje del hilo
+        Thread.objects.filter(id=thread.id).update(
+            last_message_id=message.id,
+            last_message_at=message.created_at,
+        )
 
-    # Payload 100% serializable (sin UUID puros)
-    ws_message = {
-      "id": str(message.id),
-      "thread_id": str(thread.id),
-      "sender_id": str(message.sender_id) if message.sender_id else None,
-      "text": message.text,
-      "type": message.type,  # si usas choices Enum/str, sigue siendo serializable
-      "created_at": message.created_at.isoformat(),
-    }
+        # ── Broadcast al grupo WebSocket ─────────────────────────────
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return  # por si no está configurado channels (tests, etc.)
 
-    async_to_sync(channel_layer.group_send)(
-      group,
-      {
-        "type": "thread.event",  # llama a ChatConsumer.thread_event
-        "data": {
-          "type": "message.created",
-          "payload": {"message": ws_message},
-        },
-      },
-    )
+        group = thread_group_name(str(thread.id))
+
+        # Payload 100% serializable (sin UUID puros)
+        ws_message = {
+            "id": str(message.id),
+            "thread_id": str(thread.id),
+            "sender_id": str(message.sender_id) if message.sender_id else None,
+            "text": message.text,
+            "type": message.type,
+            "created_at": message.created_at.isoformat(),
+        }
+
+        async_to_sync(channel_layer.group_send)(
+            group,
+            {
+                "type": "thread.event",  # llama a ChatConsumer.thread_event
+                "data": {
+                    "type": "message.created",
+                    "payload": {"message": ws_message},
+                },
+            },
+        )
