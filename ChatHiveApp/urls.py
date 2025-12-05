@@ -10,11 +10,26 @@ router = DefaultRouter()
 router.register(r"chat/threads", ThreadViewSet, basename="chat-threads")
 
 urlpatterns = [
-    # Mensajes de un hilo
+    # Mensajes de un hilo (lista y creación)
     path(
-        "chat/threads/<uuid:thread_id>/messages/",
+        # 🔁 CAMBIO: uuid -> str
+        "chat/threads/<str:thread_id>/messages/",
         MessageViewSet.as_view({"get": "list", "post": "create"}),
         name="chat-thread-messages",
+    ),
+
+    # 🔹 Mensaje individual: editar / eliminar / ver
+    path(
+        # 🔁 CAMBIO: uuid -> str en ambos
+        "chat/threads/<str:thread_id>/messages/<str:pk>/",
+        MessageViewSet.as_view(
+            {
+                "get": "retrieve",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
+        name="chat-thread-message-detail",
     ),
 
     # 🔹 Directos: RESOLVE y SEND

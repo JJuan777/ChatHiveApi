@@ -15,14 +15,12 @@ class UserMiniSerializer(serializers.ModelSerializer):
         fields = ("id", "email", "first_name", "last_name", "display")
 
     def get_display(self, obj):
-        # Ajusta si tu User tiene display_name
         name = getattr(obj, "display_name", None)
         if name:
             return name
         parts = [obj.first_name or "", obj.last_name or ""]
         name = " ".join(p for p in parts if p).strip()
         return name or obj.email
-
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_id = serializers.SerializerMethodField()
@@ -63,6 +61,15 @@ class MessageSerializer(serializers.ModelSerializer):
         validated_data.setdefault("type", MessageType.TEXT)
         return super().create(validated_data)
 
+    def to_representation(self, obj):
+        """
+        Si el mensaje está eliminado, nunca devolvemos el texto original.
+        El front ya se encarga de mostrar 'Mensaje eliminado' usando deleted_at.
+        """
+        data = super().to_representation(obj)
+        if obj.deleted_at:
+          data["text"] = ""
+        return data
 
 class ThreadListSerializer(serializers.ModelSerializer):
     """
