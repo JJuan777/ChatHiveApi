@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-2eyzn8b(dok5sw*09=4@4tuctab-&#czfp2a)-(b)$hyol!pa$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost", "https://chathiveapi-production.up.railway.app"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "chathiveapi-production.up.railway.app"]
 
 
 # Application definition
@@ -100,9 +100,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8081",
     "http://127.0.0.1:8081",
+    "https://chathiveapi-production.up.railway.app",
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "http://127.0.0.1:5173", "http://localhost:5173", "http://localhost:8081", "http://127.0.0.1:8081",
+    "http://127.0.0.1:5173", "http://localhost:5173", "http://localhost:8081", "http://127.0.0.1:8081", "https://chathiveapi-production.up.railway.app",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
