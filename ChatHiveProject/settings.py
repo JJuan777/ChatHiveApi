@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-2eyzn8b(dok5sw*09=4@4tuctab-&#czfp2a)-(b)$hyol!pa$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "https://chathiveapi-production.up.railway.app"]
 
 
 # Application definition
