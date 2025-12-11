@@ -27,6 +27,7 @@ def clear_auth_cookies(response):
     response.delete_cookie(REFRESH_COOKIE_NAME)
 
 # ------------------- Login -------------------
+# ------------------- Login -------------------
 class LoginView(generics.GenericAPIView):
     """
     Login: tokens- cookies httpOnly
@@ -37,7 +38,9 @@ class LoginView(generics.GenericAPIView):
     throttle_scope = "login"
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data, context={"request": request})
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         tokens = serializer.validated_data
         access = tokens["access"]
@@ -54,12 +57,11 @@ class LoginView(generics.GenericAPIView):
         resp = Response({"user": user_data}, status=status.HTTP_200_OK)
         set_auth_cookies(resp, access, refresh)
 
-        # incluir tokens en JSON (Bearer):
-        # resp.data["access"] = access
-        # resp.data["refresh"] = refresh
+        # ✅ IMPORTANTE: incluir tokens también en el JSON para el móvil
+        resp.data["access"] = access
+        resp.data["refresh"] = refresh
 
         return resp
-
 
 # ------------------- Refresh -------------------
 class RefreshCookieView(APIView):
